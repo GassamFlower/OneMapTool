@@ -51,6 +51,7 @@ def scrape_url(key_word,  latitude1, latitude2, longitude1, longitude2, agent):
     :param agent: ua
     :return:
     """
+
     headers = {
         'accept': '*/*',
         'accept-language': 'zh-CN,zh;q=0.9',
@@ -155,6 +156,7 @@ def scrape_by_api(province, key_word):
                 random_agent = random.choice(agents)
                 parser_html(scrape_url(key_word, content[0], content[1], content[2], content[3], random_agent), province, city_name)  # 解析数据
                 logger_info.info("数据去重工作准备......")
+                time.sleep(1)
                 execl_qc(province=province, city_name=city_name, map_type="必应")  # 数据去重
             end_time = datetime.now()
             logger_info.info(f"用时：{end_time - start_time}")
