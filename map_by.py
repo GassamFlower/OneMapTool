@@ -26,7 +26,6 @@ from excel_cleanse import execl_qc
 logger_debug = set_logger(log_name='ByLogger', name='debug_by', log_file="debug_by.log", level=logging.DEBUG)
 logger_info = set_logger(log_name='ByLogger', name='info_by', log_file="info_by.log", level=logging.INFO)
 
-
 agents = [
     'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.101 Safari/537.36',
     'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US) AppleWebKit/532.5 (KHTML, like Gecko) Chrome/4.0.249.0 Safari/532.5',
@@ -40,16 +39,14 @@ agents = [
 ]
 
 
-def scrape_url(key_word,  latitude1, latitude2, longitude1, longitude2, agent):
-    logger_info.info(f"纬度1:{latitude1}, 纬度2：{latitude2}——经度1：{longitude1}，经度2：{longitude2}")
+def scrape_url(key_word, agent, city_name):
+    # logger_info.info(f"纬度1:{latitude1}, 纬度2：{latitude2}——经度1：{longitude1}，经度2：{longitude2}")
     """
+    :param city_name:
     :param key_word: 关键字
-    :param latitude1:  纬度1
-    :param latitude2: 纬度2
-    :param longitude1: 经度1
-    :param longitude2: 经度2
     :param agent: ua
     :return:
+    通过经纬度查询的地图数据不准确，始终以IP地址为准，经postman测试，关键字+地区可以查询到对应城市地区，所以一下逻辑需要修改。
     """
 
     headers = {
@@ -58,9 +55,9 @@ def scrape_url(key_word,  latitude1, latitude2, longitude1, longitude2, agent):
         'user-agent': agent,
     }
     params = {
-        "q": key_word,
-        "count": 100,
-        "localMapView": f"{latitude1}, {longitude1}, {latitude2}, {longitude2}"
+        "q": city_name +' '+key_word,
+        "count": 100
+        # "localMapView": f"{latitude1}, {longitude1}, {latitude2}, {longitude2}"
     }
     time.sleep(random.randint(1, 2))
     response = requests.get(
@@ -81,7 +78,7 @@ def parser_html(html, province, city_name):
             soup = BeautifulSoup(str(content_parser), 'html.parser')
             content_soup = soup.find_all('div', attrs={'class': 'b_factrow'})
             if len(content_soup) > 3:
-                logger_info.info(f"DZ类型：{(content_soup[2].text)[:6]}")
+                logger_info.info(f"DZ类型：{content_soup[2].text[:6]}")
                 if city_name in content_soup[2].text:
                     logger_info.info(f"类型：{content_soup[1].text}")
                     save_date(province, city_name, content_soup[0].text, content_soup[2].text, content_soup[3].text)
@@ -92,7 +89,7 @@ def parser_html(html, province, city_name):
 def save_date(province, city_name, name, addr, tel):
     logger_info.info("save data starting......")
     try:
-    # 如果Excel文件不存在，则创建一个新的Excel文件
+        # 如果Excel文件不存在，则创建一个新的Excel文件
         if not os.path.exists(f'{province}/{city_name}_必应.xlsx'):
             logger_info.info(f"创建{city_name}数据")
             workbook = Workbook()
@@ -102,12 +99,12 @@ def save_date(province, city_name, name, addr, tel):
             workbook.save(f'{province}/{city_name}_必应.xlsx')
         else:
 
-                logger_info.info(f"追加{city_name}数据")
-                # 如果Excel文件已存在，则读取现有数据并将新的JSON数据追加到其中
-                workbook = openpyxl.load_workbook(f'{province}/{city_name}_必应.xlsx')
-                worksheet = workbook.active
-                worksheet.append([name, addr, tel])
-                workbook.save(f'{province}/{city_name}_必应.xlsx')
+            logger_info.info(f"追加{city_name}数据")
+            # 如果Excel文件已存在，则读取现有数据并将新的JSON数据追加到其中
+            workbook = openpyxl.load_workbook(f'{province}/{city_name}_必应.xlsx')
+            worksheet = workbook.active
+            worksheet.append([name, addr, tel])
+            workbook.save(f'{province}/{city_name}_必应.xlsx')
     except Exception as e:
         logger_debug.debug(f"数据时异常，当前异常为：{e},append{[name, addr, tel]}")
 
@@ -147,19 +144,21 @@ def scrape_by_api(province, key_word):
         items = read_data[province].items()
         for city_name, value in items:
             logger_info.info(f"当前城市：{city_name}")
-    # for k, v in wh_json.items():
+            # for k, v in wh_json.items():
             for float_range in np.arange(0.000001, 0.999999, 0.131102):
                 longitudes.append(value[0] + float_range)
                 latitudes.append(value[1] + float_range)
             start_time = datetime.now()
             for content in ll_itertools(latitudes, longitudes):
                 random_agent = random.choice(agents)
-                parser_html(scrape_url(key_word, content[0], content[1], content[2], content[3], random_agent), province, city_name)  # 解析数据
+                parser_html(scrape_url(key_word, random_agent, city_name),
+                            province, city_name)  # 解析数据
                 logger_info.info("数据去重工作准备......")
                 time.sleep(1)
                 execl_qc(province=province, city_name=city_name, map_type="必应")  # 数据去重
             end_time = datetime.now()
             logger_info.info(f"用时：{end_time - start_time}")
+
 
 if __name__ == '__main__':
     scrape_by_api("湖北省", '1')
